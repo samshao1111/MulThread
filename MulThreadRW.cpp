@@ -4,8 +4,8 @@
 #include <boost/thread/condition.hpp>
 #include <iostream>
 
-const int BUF_SIZE = 10;
-const int MAX_WRITE_NUM = 300;
+const int BUF_SIZE = 5;
+const int MAX_WRITE_NUM = 148;
 static int number = 0;
 
 boost::mutex io_mutex;
@@ -18,7 +18,6 @@ class buffer
     buffer()
         : p(0), c(0), full(0)
     {
-
     }
 
     void put(int threadid)
@@ -35,7 +34,7 @@ class buffer
                 while (full == BUF_SIZE)
                     cond_put.wait(lk_put);
             }
-            
+
             buf[p] = number;
 
             {
@@ -43,13 +42,17 @@ class buffer
                 std::cout << "W Theadid " << threadid << ":sending: " << buf[p] << std::endl;
             }
 
-            
             p = (p + 1) % BUF_SIZE;
             ++full;
             ++number;
 
             cond_get.notify_one();
         }
+
+        //本线程退出前，释放所有锁
+        full = -1;
+        cond_put.notify_all();
+        cond_get.notify_all();
     }
 
     void get(int threadid)
@@ -78,12 +81,18 @@ class buffer
 
             cond_put.notify_one();
         }
+
+        //本线程退出前，释放所有锁
+        full = -1;
+        cond_put.notify_all();
+        cond_get.notify_all();
     }
 
   private:
     boost::mutex mutex;
     boost::condition cond_put, cond_get;
-    unsigned int p, c, full;
+    unsigned int p, c;
+    int full;
     int buf[BUF_SIZE];
 };
 
@@ -105,12 +114,12 @@ int main(int argc, char *argv[])
     boost::thread thrdR1(boost::bind(&reader, 1));
     boost::thread thrdW1(boost::bind(&writer, 1));
     boost::thread thrdW2(boost::bind(&writer, 2));
-    boost::thread thrdR2(boost::bind(&reader, 2));
+    // boost::thread thrdR2(boost::bind(&reader, 2));
 
     thrdR1.join();
     thrdW1.join();
     thrdW2.join();
-    thrdR2.join();
+    //  thrdR2.join();
 
     return 0;
 }
